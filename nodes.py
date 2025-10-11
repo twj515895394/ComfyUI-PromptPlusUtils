@@ -12,7 +12,22 @@ import comfy.utils
 import numpy as np
 from PIL import Image
 
-key_path = os.path.join(folder_paths.get_folder_paths("custom_nodes")[0], "PromptImageHelper", "api_key.txt")
+
+# ================================
+# 插件配置
+# ================================
+PLUGIN_NAME = "ComfyUI-PromptPlusUtils"
+PLUGIN_VERSION = "1.0.1"
+
+# API密钥文件路径
+key_path = os.path.join(
+    folder_paths.get_folder_paths("custom_nodes")[0],
+    "ComfyUI-PromptPlusUtils",
+    "api_key.txt"
+)
+
+# 确保目录存在
+os.makedirs(os.path.dirname(key_path), exist_ok=True)
 
 IMAGE_SYSTEM_PROMPT_ZH = '''
 你是一位Prompt优化师，旨在将用户输入改写为优质Prompt，使其更完整、更具表现力，同时不改变原意。
@@ -263,6 +278,29 @@ def polish_prompt(api_key, prompt, model="qwen-plus", max_retries=10):
 
     raise EnvironmentError(f"Error during API call: {error}")
 
+def get_api_key(api_key_input):
+    """获取API密钥，优先使用输入，其次使用文件"""
+    _api_key = api_key_input.strip()
+    if _api_key:
+        print(f"[{PLUGIN_NAME}] Using API key from input")
+        return _api_key
+
+    if os.path.exists(key_path):
+        try:
+            with open(key_path, "r", encoding="utf-8") as f:
+                _api_key = f.read().strip()
+            if _api_key:
+                print(f"[{PLUGIN_NAME}] Using API key from file: {key_path}")
+                return _api_key
+            else:
+                print(f"[{PLUGIN_NAME}] API key file is empty")
+        except Exception as e:
+            print(f"[{PLUGIN_NAME}] Error reading API key file: {e}")
+    else:
+        print(f"[{PLUGIN_NAME}] API key file not found: {key_path}")
+
+    return None
+
 
 class PromptImageHelper:
     """
@@ -334,8 +372,8 @@ class PromptImageHelper:
         if skip_rewrite:
             return (prompt,)
 
-        # API密钥处理
-        _api_key = api_key.strip()
+        # 获取API密钥
+        _api_key = get_api_key(api_key)
         if not _api_key:
             if os.path.exists(key_path):
                 with open(key_path, "r", encoding="utf-8") as f:
