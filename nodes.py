@@ -1,17 +1,14 @@
-import os
-import io
-import math
-import json
-import torch
 import base64
+import hashlib
+import io
+import json
+import os
+from collections import OrderedDict
+
 import dashscope
 import folder_paths
-import node_helpers
-import comfy.utils
-
 import numpy as np
 from PIL import Image
-
 
 # ================================
 # 插件配置
@@ -28,6 +25,107 @@ key_path = os.path.join(
 
 # 确保目录存在
 os.makedirs(os.path.dirname(key_path), exist_ok=True)
+
+
+# ================================
+# 缓存系统
+# ================================
+class PromptCache:
+    def __init__(self, max_size=100):
+        self.cache = OrderedDict()
+        self.max_size = max_size
+        self.hit_count = 0
+        self.miss_count = 0
+
+    def _generate_image_hash(self, image_tensor):
+        """生成图像内容的感知哈希"""
+        try:
+            # 将tensor转换为PIL图像
+            pil_images = tensor2pil(image_tensor)
+            if not pil_images:
+                return "no_image"
+
+            # 使用第一张图像生成哈希
+            img = pil_images[0]
+
+            # 缩小图像以生成感知哈希（对微小变化不敏感）
+            img_small = img.resize((8, 8), Image.LANCZOS).convert('L')  # 转为灰度
+            pixels = list(img_small.getdata())
+
+            # 计算平均值
+            avg = sum(pixels) / len(pixels)
+
+            # 生成哈希：大于平均值为1，否则为0
+            hash_str = ''.join('1' if pixel > avg else '0' for pixel in pixels)
+
+            # 转为16进制存储
+            return hashlib.md5(hash_str.encode()).hexdigest()
+
+        except Exception as e:
+            print(f"[{PLUGIN_NAME}] Error generating image hash: {e}")
+            return "error_hash"
+
+    def _generate_cache_key(self, prompt, image, model, mode):
+        """生成缓存键"""
+        prompt_part = hashlib.md5(prompt.strip().encode('utf-8')).hexdigest()
+        model_part = model
+        mode_part = mode
+
+        if image is not None and mode == "image-to-image":
+            image_part = self._generate_image_hash(image)
+            return f"{prompt_part}_{image_part}_{model_part}_{mode_part}"
+        else:
+            return f"{prompt_part}_{model_part}_{mode_part}"
+
+    def get(self, prompt, image, model, mode):
+        """从缓存获取结果"""
+        key = self._generate_cache_key(prompt, image, model, mode)
+
+        if key in self.cache:
+            # 移动到最近使用
+            value = self.cache.pop(key)
+            self.cache[key] = value
+            self.hit_count += 1
+            print(f"[{PLUGIN_NAME}] Cache hit! Key: {key[:16]}...")
+            return value
+
+        self.miss_count += 1
+        return None
+
+    def set(self, prompt, image, model, mode, result):
+        """设置缓存结果"""
+        key = self._generate_cache_key(prompt, image, model, mode)
+
+        # 如果达到最大大小，移除最旧的条目
+        if len(self.cache) >= self.max_size:
+            self.cache.popitem(last=False)
+
+        self.cache[key] = result
+        print(f"[{PLUGIN_NAME}] Cached result. Cache size: {len(self.cache)}")
+
+    def clear(self):
+        """清空缓存"""
+        cache_size = len(self.cache)
+        self.cache.clear()
+        self.hit_count = 0
+        self.miss_count = 0
+        print(f"[{PLUGIN_NAME}] Cache cleared. Previous size: {cache_size}")
+
+    def get_stats(self):
+        """获取缓存统计"""
+        total = self.hit_count + self.miss_count
+        hit_rate = (self.hit_count / total * 100) if total > 0 else 0
+        return {
+            "cache_size": len(self.cache),
+            "hit_count": self.hit_count,
+            "miss_count": self.miss_count,
+            "hit_rate": hit_rate
+        }
+
+
+# 全局缓存实例
+prompt_cache = PromptCache(max_size=100)
+
 
 IMAGE_SYSTEM_PROMPT_ZH = '''
 你是一位Prompt优化师，旨在将用户输入改写为优质Prompt，使其更完整、更具表现力，同时不改变原意。
@@ -342,6 +440,14 @@ class PromptImageHelper:
                     "default": "",
                     "tooltip": f'阿里云API密钥，也可保存在 {key_path}'
                 }),
+                "enable_cache": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "启用缓存功能，避免重复API调用"
+                }),
+                "clear_cache": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "清空缓存（通常保持为False）"
+                }),
                 "skip_rewrite": ("BOOLEAN", {
                     "default": False,
                     "tooltip": "跳过优化，直接返回原提示词"
@@ -364,13 +470,26 @@ class PromptImageHelper:
     def IS_CHANGED(cls, **kwargs):
         return float("NaN")
 
-    def optimize_prompt(self, prompt, mode, model, max_retries, api_key, skip_rewrite, image=None):
+    def optimize_prompt(self, prompt, mode, model, max_retries, api_key, enable_cache, clear_cache, skip_rewrite, image=None):
         """
         优化提示词的主函数
         """
+        # 处理缓存清空请求
+        if clear_cache:
+            prompt_cache.clear()
+            return (prompt,)  # 清空缓存后直接返回原提示词
+
         # 如果跳过优化，直接返回原提示词
         if skip_rewrite:
             return (prompt,)
+
+        # 检查缓存（如果启用）
+        if enable_cache:
+            cached_result = prompt_cache.get(prompt, image, model, mode)
+            if cached_result is not None:
+                stats = prompt_cache.get_stats()
+                print(f"[{PLUGIN_NAME}] Using cached result. Hit rate: {stats['hit_rate']:.1f}%")
+                return (cached_result,)
 
         # 获取API密钥
         _api_key = get_api_key(api_key)
@@ -410,10 +529,16 @@ class PromptImageHelper:
                 model=model, max_retries=max_retries
             )
 
+        # 缓存结果（如果启用缓存）
+        if enable_cache:
+            prompt_cache.set(prompt, image, model, mode, optimized_prompt)
+
+        # 输出优化结果和缓存统计
+        stats = prompt_cache.get_stats()
         print(f"PromptImageHelper: 优化完成")
         print(f"原提示词: {prompt}")
         print(f"优化后: {optimized_prompt}")
-
+        print(f"[{PLUGIN_NAME}] Cache stats: {stats['cache_size']} items, {stats['hit_rate']:.1f}% hit rate")
         return (optimized_prompt,)
 
 
