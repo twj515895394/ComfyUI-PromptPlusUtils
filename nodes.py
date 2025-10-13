@@ -10,10 +10,6 @@ import folder_paths
 import numpy as np
 from PIL import Image
 
-# ================================
-# 节点导入
-# ================================
-from .audioFrameWinSize import AudioFrameWinSize
 
 # ================================
 # 插件配置
@@ -550,10 +546,8 @@ class PromptImageHelper:
 # 节点注册
 NODE_CLASS_MAPPINGS = {
     "PromptImageHelper": PromptImageHelper,
-    "AudioFrameWinSize": AudioFrameWinSize,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "PromptImageHelper": "PromptImageHelper v1.0.1 提示词助手",
-    "AudioFrameWinSize": "🎧 音频滑动窗口值计算",
 }
