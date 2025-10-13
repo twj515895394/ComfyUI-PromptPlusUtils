@@ -1,69 +1,64 @@
 import torch
+from ComfyUI import io
 
-class AudioFrameWinSize:
-    """
-    音频滑动窗口值计算节点
-    输入 AudioEncoder 输出，自动计算安全的 t 值（滑动窗口帧数）
-    支持 auto/manual 模式
-    """
+class AudioFrameWinSize(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="AudioFrameWinSize",
+            category="audio",
+            inputs={
+                "audio_encoder_output": ("AUDIO_ENCODER_OUTPUT", {"optional": False, "tooltip": "来自 AudioEncoderEncode 的输出"}),
+                "max_t": ("INT", {"default": 81, "min": 1, "max": 1000, "tooltip": "frame_window_size 最大上限"})
+            },
+            outputs={
+                "frame_window_size": ("INT", {"tooltip": "计算得到的最优滑动窗口帧数"}),
+                "audio_total_frames": ("INT", {"tooltip": "音频编码器总帧数"})
+            }
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "audio_encoder_output": ("AUDIO_ENCODER_OUTPUT",),
-                "mode": (["auto", "manual"], {"default": "auto"}),
-            }
-        }
+    def INPUT_TYPES(s):
+        return {"required": {
+            "audio_encoder_output": ("AUDIO_ENCODER_OUTPUT",),
+            "max_t": ("INT", {"default": 81, "min": 1, "max": 1000}),
+        }}
 
-    RETURN_TYPES = ("INT",)
-    RETURN_NAMES = ("t_value",)
-    FUNCTION = "compute_t"
-    CATEGORY = "Audio/Utils"
-    DISPLAY_NAME = "音频滑动窗口值计算"
+    RETURN_TYPES = ("INT", "INT")
+    RETURN_NAMES = ("frame_window_size", "audio_total_frames")
+    FUNCTION = "compute"
+    CATEGORY = "AUDIO/音频滑动窗口值计算"
 
-    # 最大 t 值限制，保证不报错
-    MAX_T = 81
+    def compute(self, audio_encoder_output, max_t=81):
+        if audio_encoder_output is None:
+            raise ValueError("[AudioFrameWinSize] 无法从输入中找到有效 audio_encoder_output")
 
-    def compute_t(self, audio_encoder_output, mode):
-        if not isinstance(audio_encoder_output, dict):
-            raise TypeError(f"[AudioFrameWinSize] 输入必须为 AUDIO_ENCODER_OUTPUT, 当前类型: {type(audio_encoder_output)}")
+        if "encoded_audio_all_layers" not in audio_encoder_output:
+            raise ValueError("[AudioFrameWinSize] audio_encoder_output 缺少 encoded_audio_all_layers")
 
-        tensor = None
-        t_value = 1
-        source = "unknown"
+        all_layers = audio_encoder_output["encoded_audio_all_layers"]
+        if not isinstance(all_layers, list) or len(all_layers) == 0:
+            raise ValueError("[AudioFrameWinSize] encoded_audio_all_layers 为空")
 
-        # 优先取 embeddings
-        if "embeddings" in audio_encoder_output and isinstance(audio_encoder_output["embeddings"], torch.Tensor):
-            tensor = audio_encoder_output["embeddings"]
-            t_value = tensor.shape[1]
-            source = "embeddings"
-        # fallback 到 samples
-        elif "samples" in audio_encoder_output and isinstance(audio_encoder_output["samples"], torch.Tensor):
-            tensor = audio_encoder_output["samples"]
-            source = "samples"
-            # manual 模式内部自动计算
-            total_len = tensor.shape[-1] if tensor.dim() > 1 else tensor.numel()
-            if total_len > self.MAX_T:
-                t_value = self.MAX_T
-            else:
-                t_value = total_len
+        # 获取总帧数
+        audio_feat = torch.stack(all_layers, dim=0).squeeze(1)  # [num_layers, T, dim]
+        total_frames = audio_feat.shape[1]
+
+        # 找最大可整除值
+        candidates = [t for t in range(1, min(max_t, total_frames)+1) if total_frames % t == 0]
+        if candidates:
+            frame_window_size = max(candidates)
         else:
-            raise ValueError("[AudioFrameWinSize] 无法从输入中找到有效 embeddings 或 samples")
+            frame_window_size = min(max_t, total_frames)
 
-        # 强制 t 不超过 MAX_T
-        if t_value > self.MAX_T:
-            t_value = self.MAX_T
-
-        print(f"[AudioFrameWinSize] mode={mode}, source={source}, 输入 shape={tuple(tensor.shape)}, 输出 t={t_value}")
-        return (int(t_value),)
+        return frame_window_size, total_frames
 
 
-# 节点注册
+# 注册节点
 NODE_CLASS_MAPPINGS = {
-    "AudioFrameWinSize": AudioFrameWinSize
+    "AudioFrameWinSize": AudioFrameWinSize,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "AudioFrameWinSize": "音频滑动窗口值计算"
+    "AudioFrameWinSize": "音频滑动窗口值计算",
 }
