@@ -10,7 +10,7 @@ class AudioFrameWinSize:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "input_tensor": ("ANY",),
+                "input_tensor": (["AUDIO", "LATENT", "IMAGE", "TENSOR", "ANY"],),
                 "window_size": ("INT", {"default": 1024, "min": 1}),
                 "step_size": ("INT", {"default": 512, "min": 1}),
             }
@@ -22,7 +22,7 @@ class AudioFrameWinSize:
     DISPLAY_NAME = "音频滑动窗口值计算"
 
     def compute_t_value(self, input_tensor, window_size, step_size):
-        # 支持多种输入结构
+        # 自动解析 tensor
         tensor = None
 
         if isinstance(input_tensor, dict):
@@ -40,17 +40,14 @@ class AudioFrameWinSize:
         if not isinstance(tensor, torch.Tensor):
             raise ValueError("无法从输入中解析出有效的 torch.Tensor")
 
-        # 确保为 [C, T] 或 [T]
-        if tensor.dim() > 1:
-            total_len = tensor.shape[-1]
-        else:
-            total_len = tensor.numel()
-
+        # 计算 t 值
+        total_len = tensor.shape[-1] if tensor.dim() > 1 else tensor.numel()
         if total_len < window_size:
             t_value = 1
         else:
             t_value = (total_len - window_size) // step_size + 1
 
+        print(f"[AudioFrameWinSize] 输入 shape={tuple(tensor.shape)}, 输出 t={t_value}")
         return (t_value,)
 
 
