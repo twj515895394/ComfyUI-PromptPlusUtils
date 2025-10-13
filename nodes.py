@@ -551,3 +551,5 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "PromptImageHelper": "PromptImageHelper v1.0.1 提示词助手",
 }
+
+print("\033[1;34m[PromptImageHelper] 节点注册完成，可在 ComfyUI 中使用!\033[0m")
