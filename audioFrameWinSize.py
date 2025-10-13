@@ -1,48 +1,60 @@
-import math
-from comfy import Node
+import torch
 
-class AudioFrameWinSize(Node):
+class AudioFrameWinSize:
+    """
+    音频滑动窗口值计算节点
+    支持输入 ANY 类型（可兼容 AudioEncoder 输出）
+    """
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                # ANY 类型可以接任何输入，包括 AudioEncoder 输出的 dict
                 "input_tensor": ("ANY",),
-                "max_t": ("INT", {"default": 81, "min": 1, "max": 200}),
-                "tolerance": ("INT", {"default": 3, "min": 0, "max": 50}),
+                "window_size": ("INT", {"default": 1024, "min": 1}),
+                "step_size": ("INT", {"default": 512, "min": 1}),
             }
         }
 
-    RETURN_TYPES = ("INT",)
-    FUNCTION = "compute_t"
-    CATEGORY = "音频处理"
+    RETURN_TYPES = ("ANY",)
+    FUNCTION = "compute_window"
+    CATEGORY = "Audio/Utils"
     DISPLAY_NAME = "音频滑动窗口值计算"
 
-    def compute_t(self, input_tensor, max_t=81, tolerance=3):
-        # 尝试提取实际 tensor
-        tensor = None
-        if isinstance(input_tensor, dict) and "samples" in input_tensor:
-            tensor = input_tensor["samples"]
-        elif hasattr(input_tensor, "tensor"):
+    def compute_window(self, input_tensor, window_size, step_size):
+        # 兼容多种输入类型
+        if hasattr(input_tensor, "tensor"):
             tensor = input_tensor.tensor
         elif hasattr(input_tensor, "latents"):
             tensor = input_tensor.latents
-        elif hasattr(input_tensor, "shape"):
+        elif isinstance(input_tensor, torch.Tensor):
             tensor = input_tensor
         else:
-            print(f"[AudioFrameWinSize] 无法识别输入类型: {type(input_tensor)}")
-            return (1,)
+            raise TypeError(f"Unsupported input type: {type(input_tensor)}")
 
-        # 总长度
-        seq_len = tensor.shape[1]  # 假设 shape [B, T, ...]，取第二维
+        # 确保为2D张量 [channels, samples]
+        if tensor.dim() == 1:
+            tensor = tensor.unsqueeze(0)
 
-        # 找能整除的 t 值，t <= max_t
-        for t_candidate in range(min(max_t, seq_len), 0, -1):
-            n, r = divmod(seq_len, t_candidate)
-            if r <= tolerance:
-                print(f"[AudioFrameWinSize] 选择滑动窗口 t={t_candidate} (seq_len={seq_len}, n={n}, remainder={r})")
-                return (t_candidate,)
+        total_len = tensor.shape[-1]
+        windows = []
 
-        # 如果没有找到合适的 t，就返回 1
-        print(f"[AudioFrameWinSize] 没有找到合适的 t，返回 t=1")
-        return (1,)
+        for start in range(0, total_len - window_size + 1, step_size):
+            end = start + window_size
+            win = tensor[..., start:end]
+            windows.append(win)
+
+        if not windows:
+            return (tensor,)
+
+        stacked = torch.stack(windows, dim=0)
+        return (stacked,)
+
+
+# 节点注册信息
+NODE_CLASS_MAPPINGS = {
+    "AudioFrameWinSize": AudioFrameWinSize
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "AudioFrameWinSize": "🎧 音频滑动窗口值计算",
+}
