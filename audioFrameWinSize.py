@@ -27,7 +27,7 @@ class AudioFrameWinSize(io.ComfyNode):
     RETURN_TYPES = ("INT", "INT")
     RETURN_NAMES = ("frame_window_size", "audio_total_frames")
     FUNCTION = "compute"
-    CATEGORY = "AUDIO/音频滑动窗口值计算"
+    CATEGORY = "音频滑动窗口值计算"
 
     def compute(self, audio_encoder_output, max_t=81):
         if audio_encoder_output is None:
