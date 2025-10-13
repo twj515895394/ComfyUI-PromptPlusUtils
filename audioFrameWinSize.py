@@ -3,8 +3,9 @@ import torch
 class AudioFrameWinSize:
     """
     音频滑动窗口值计算节点
-    支持输入 ANY 类型（可兼容 AudioEncoder 输出）
+    自动根据音频特征长度计算帧窗口数量 (t值)
     """
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -15,14 +16,19 @@ class AudioFrameWinSize:
             }
         }
 
-    RETURN_TYPES = ("ANY",)
-    FUNCTION = "compute_window"
+    RETURN_TYPES = ("INT",)
+    FUNCTION = "compute_t_value"
     CATEGORY = "Audio/Utils"
     DISPLAY_NAME = "音频滑动窗口值计算"
 
-    def compute_window(self, input_tensor, window_size, step_size):
-        # 兼容多种输入类型
-        if hasattr(input_tensor, "tensor"):
+    def compute_t_value(self, input_tensor, window_size, step_size):
+        # 支持多种输入结构
+        tensor = None
+
+        if isinstance(input_tensor, dict):
+            if "samples" in input_tensor:
+                tensor = input_tensor["samples"]
+        elif hasattr(input_tensor, "tensor"):
             tensor = input_tensor.tensor
         elif hasattr(input_tensor, "latents"):
             tensor = input_tensor.latents
@@ -31,30 +37,28 @@ class AudioFrameWinSize:
         else:
             raise TypeError(f"Unsupported input type: {type(input_tensor)}")
 
-        # 确保为2D张量 [channels, samples]
-        if tensor.dim() == 1:
-            tensor = tensor.unsqueeze(0)
+        if not isinstance(tensor, torch.Tensor):
+            raise ValueError("无法从输入中解析出有效的 torch.Tensor")
 
-        total_len = tensor.shape[-1]
-        windows = []
+        # 确保为 [C, T] 或 [T]
+        if tensor.dim() > 1:
+            total_len = tensor.shape[-1]
+        else:
+            total_len = tensor.numel()
 
-        for start in range(0, total_len - window_size + 1, step_size):
-            end = start + window_size
-            win = tensor[..., start:end]
-            windows.append(win)
+        if total_len < window_size:
+            t_value = 1
+        else:
+            t_value = (total_len - window_size) // step_size + 1
 
-        if not windows:
-            return (tensor,)
-
-        stacked = torch.stack(windows, dim=0)
-        return (stacked,)
+        return (t_value,)
 
 
-# 节点注册信息
+# 注册节点
 NODE_CLASS_MAPPINGS = {
     "AudioFrameWinSize": AudioFrameWinSize
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "AudioFrameWinSize": "🎧 音频滑动窗口值计算",
+    "AudioFrameWinSize": "音频滑动窗口值计算"
 }
