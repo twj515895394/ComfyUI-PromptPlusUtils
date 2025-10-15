@@ -432,8 +432,8 @@ class StoryboardPromptHelper:
             }
         }
 
-    RETURN_TYPES = ("STRING","STRING")
-    RETURN_NAMES = ("storyboard_prompts","first_frame_prompt")
+    RETURN_TYPES = ("STRING","STRING","INT")
+    RETURN_NAMES = ("storyboard_prompts","first_frame_prompt","storyboard_count")
     FUNCTION = "generate_storyboard_prompts"
     CATEGORY = "AI Tools/Prompt"
     DESCRIPTION = "StoryboardPromptHelper v1.0.0 - 分镜提示词生成器"
@@ -507,8 +507,10 @@ class StoryboardPromptHelper:
                 print(storyboard_prompts)
                 print("=== END PROCESSED ===")
 
+                # storyboard_count 分镜数量 根据"Next Scene"个数来统计
+                storyboard_count = len(lines)
                 first_frame_prompt = result.get("first_frame_prompt","").strip()
-                return (storyboard_prompts, first_frame_prompt)
+                return storyboard_prompts, first_frame_prompt, storyboard_count
 
             except Exception as e:
                 print(f"[StoryboardPromptHelper] API调用失败，第{retries+1}次重试: {e}")
