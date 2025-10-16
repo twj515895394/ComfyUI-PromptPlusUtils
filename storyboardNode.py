@@ -533,10 +533,6 @@ class StoryboardPromptHelper:
 
                 raw_storyboard = result.get("storyboard_prompts","").strip()
 
-                print("=== RAW STORYBOARD ===")
-                print(repr(raw_storyboard))
-                print("=== END RAW ===")
-
                 # 简洁且安全的方法
                 if raw_storyboard.startswith("Next Scene"):
                     # 直接替换，但更精确地处理
@@ -556,7 +552,7 @@ class StoryboardPromptHelper:
                 print("=== END PROCESSED ===")
 
                 # storyboard_count 分镜数量 根据"Next Scene"个数来统计
-                storyboard_count = len(lines)
+                storyboard_count = storyboard_prompts.count("Next Scene")
                 first_frame_prompt = result.get("first_frame_prompt","").strip()
                 return storyboard_prompts, first_frame_prompt, storyboard_count
 
