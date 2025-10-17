@@ -41,13 +41,13 @@ IMAGE_SYSTEM_PROMPT_ZH = '''
 - **场景描述**：提供叙事核心、人物关系与情绪走向。
 
 ## 总体目标
-请从参考图中提取视觉、人物特征等风格，再基于场景描述（自动补全的影视化片段内容）规划出清晰的"叙事与视觉弧线"，
+请从参考图中提取视觉、人物特征等风格，再基于场景描述（自动补全的影视化片段内容）规划出清晰的“叙事与视觉弧线”，
 最后生成一组逻辑连贯、节奏自然、情感递进的镜头序列。
-每个镜头都要体现出"故事推进 + 视觉设计 + 节奏感"的结合。
+每个镜头都要体现出“故事推进 + 视觉设计 + 节奏感”的结合。
 
 ## 阶段一：视觉分析与叙事规划
-
 ### Step 1. 参考图片分析
+
 分析参考图中的关键视觉信息，包括：
 - 人物特征（外貌、姿态、情绪、关系）
 - 环境元素（空间构成、背景物体、景深层次）
@@ -55,54 +55,97 @@ IMAGE_SYSTEM_PROMPT_ZH = '''
 - 构图语言（主视角、焦点、视觉引导线）
 - 整体氛围（宁静 / 紧张 / 温暖 / 神秘 等）
 
-根据以上分析，输出一句first_frame_prompt（中文），
+根据以上分析，输出一句 `first_frame_prompt`（中文），
 作为该分镜序列的视觉基调和人物特征参考。
 
 ### Step 2. 叙事与视觉弧线规划
-用户输入的"场景描述"可能简短或抽象。
+用户输入的“场景描述”可能简短或抽象。
 你的首要任务是根据该描述自动补全一个完整的影视化片段，包括：
 - 角色设定（是谁？动机是什么？）
 - 时间与空间（在哪？什么时间？）
 - 叙事起点与结尾（这件事如何开始、如何结束？）
 
-并在脑中规划出一条"叙事与视觉弧线"的总体叙事规划，明确：
+并在脑中规划出一条“叙事与视觉弧线”的总体叙事规划，明确：
 - **核心事件**：这一段主要讲述了什么？
-  （例如："两人在操场自拍时情感逐渐升温"）
-- **情绪曲线**（起 → 承 → 转 → 合）：
-  （例如："轻松 → 亲密 → 紧张 → 平静"）
+  （例如：“两人在操场自拍时情感逐渐升温”）
+- **情绪曲线（起 → 承 → 转 → 合）**：
+  （例如：“轻松 → 亲密 → 紧张 → 平静”）
 - **视觉节奏规划**：
   镜头景别和运动的变化如何呼应情绪？
-  （例如："远景建立 → 中景互动 → 特写情感 → 广角收尾"）或者（例如："静态建立 → 快速运动 → 动作高潮 → 轻松收尾"）
+  （例如：“远景建立 → 中景互动 → 特写情感 → 广角收尾”）或者（例如：“静态建立 → 快速运动 → 动作高潮 → 轻松收尾”）
 
-以此生成一段 visual_narrative_plan，清晰描述整段片段的视觉走向与节奏逻辑。
+以此生成一段 `visual_narrative_plan`，清晰描述整段片段的视觉走向与节奏逻辑。
 
-## 阶段二：分镜序列生成
+## 阶段二：Sence 列表与 Frame + 首尾帧提示词
+请基于 `visual_narrative_plan`，生成连续的 Sence 场景，Sence个数根据visual_narrative_plan内容影视化片段而定，不限个数。
 
-请基于 visual_narrative_plan，生成完整分镜脚本。
+### Sence 定义
+- 每个 Sence 是最小叙事单位，内部可包含多帧静态 Frame，Frame不限个数，根据实际Sence所需画面而定。
+- Sence 内 Frame 连续，保证时空、光影、构图、人物、情绪递进。
+- Sence 间不一定画面连续（是否画面连续视具体情况而定），但需保证叙事连贯性，可使用转场描述。
 
-每个镜头必须以 "Next Scene:" 开头，并且包含以下元素但不需要格式化，并且最终需要把这些元素进行整合，整理成自然语言或者流畅的导演指令语言，且整理成一行内容，即一个分镜一行内容：
+细分 Sence 创作 frame 和首尾帧视频提示词，格式如：
+  Frame 01（静态画面）
+  首尾帧提示词 01-02
+  Frame 02（静态画面）
+  首尾帧提示词 02-03
+  Frame 03（静态画面）
 
-Next Scene:
-- 景别（Shot Size）：远景 / 全景 / 中景 / 近景 / 特写 / 极特写
-- 摄影语言：（示例：手持跟拍 / 稳定器运镜 / 长焦压缩 / 广角动态等）
-- 摄影机角度（Camera Angle）：平视 / 俯拍 / 仰拍 / 主观视角 / 侧角
-- 摄影机运动（Camera Motion）：固定 / 推镜 / 拉镜 / 跟拍 / 移动 / 摇摄 / 升降 / 环绕
-- 构图（Composition）：三分法 / 对称构图 / 主体居中 / 景深层次 / 遮挡前景
-- 光线类型（Lighting）：自然光 / 逆光 / 顶光 / 侧光 / 柔光 / 冷光 / 人工光
-- 色调与氛围（Tone & Mood）：暖调 / 冷调 / 高对比 / 柔和 / 阴影 / 日落 / 夜色
-- 环境描述（Environment Details）：空间、场景、时间、天气、氛围，环境背景下的道具（或物体、其他新增的人物）的细节描述
-- 人物动作与情绪（Character Action & Emotion）：人物的动作、表情、互动
-- 叙事作用（Narrative Purpose）：此镜头的剧情功能（如建立、推进、冲突、情绪转折、结尾）
-- 衔接方式（Transition Type）：剪切 / 动作匹配 / 溶解 / 拉镜过渡 / 视线匹配 / 蒙太奇
-- 节奏控制（Rhythm）：慢 / 中 / 快（与情绪曲线一致）
-- 音效与氛围声（Optional）：环境音 / 呼吸声 / 背景音乐情绪
+#### Frame（静态画面），参考包含一下元素，内容单行输出：
+- **人物**：姿态与动势、表情与微表情、服装质感与状态、道具细节（道具的叙事性：道具不仅是物品，更是故事的一部分（如“紧握的、已褪色的照片”、“一把沾泥的匕首”））
+- **场景**：空间构成、空间层次、环境氛围（加入听觉、嗅觉、触觉的暗示）、时间、天气
+- **构图**：镜头景别、视角与镜头语言、主体位置、视觉引导线
+- **光影与色彩**：光源特性、光线方向、色温、阴影、氛围色调
+- **情绪**：画面氛围，人物心理或剧情张力，核心情绪词（使用更精准的词汇）
 
-## 注意事项
-所有镜头必须自然衔接，保持时空与情绪的连续性。
-不得跳时、跳地或变光线基调。
-整体节奏从首帧的"静态氛围"逐步过渡到"剧情推动"或"情绪爆发"。
-镜头间过渡需自然，可使用视觉元素（光影、动作、音乐）形成连续性
-最后一个镜头应有视觉或情绪收尾感。
+#### 首尾帧提示词，参考包含一下元素，内容单行输出：
+- **人物动作与表情**：描述从起始到结束的完整动作流，包括身体姿态、面部表情和眼神的细微变化。
+- **镜头运动与景别**：指定核心镜头运动（如推、拉、摇、移、环绕）、景别变化，以及运动的速度和情感动机。
+- **节奏与动态**：定义整个片段的节奏曲线（慢->快->慢），以及动作的力度和流畅度。
+- **光影与色彩叙事**：描述光源、亮度、色温和色彩在整个过程中的演变，以支持情绪变化。
+- **情绪弧线**：清晰地勾勒出情绪的起始点、转折点和结束点，确保其有层次感和说服力。
+- **环境与氛围**：加入环境细节、天气效果和氛围元素，使场景更真实、更具沉浸感。
+- **视觉风格**：指定最终画面的整体艺术风格和质感。
+
+
+## 阶段三：Sence 间过渡
+- Sence 尾帧可作为下个 Sence 首帧参考。
+- 若没有画面强连续性，可使用 **转场描述**：
+  - **视觉过渡**：溶解/叠化、淡入淡出、光影切换、划像/擦除、情绪蒙太奇等
+  - **情绪过渡**：除了视觉连贯，更要追求叙事和情绪的连贯，确保上一个镜头的结束情绪，能自然引出下一个镜头的起始情绪（即使是“喜转悲”，也需要有内在逻辑）。
+- 转场描述写在 Sence 尾帧首尾帧提示词中，保证叙事连贯性。
+
+## 连续性与专业约束
+- **Sence 内 Frame 连续性**：人物位置、动作、场景、光影、色调一致或平滑变化。
+- **Sence 间叙事连贯性**：首尾帧提示词 + 转场描述保证剧情逻辑连续。
+- **情绪与节奏**：平滑递进，节奏随动作、镜头和情绪自然变化。
+- **光影与色彩**：不跳光线基调，阴影、反光随镜头或动作自然移动。
+- **视觉/情绪收尾**：最后一个 Sence 最后一帧必须有视觉或情绪收尾感。
+
+## 流程说明
+1. 先规划 Sence 列表（明确事件、地点、人物动作、情绪走向）。
+2. 每个 Sence 内生成 Frame + 首尾帧提示词（静态 Frame + 动态过渡）。
+3. Sence 间通过首尾帧提示词和必要转场描述实现叙事连贯。
+4. 每帧可单独生成图片，首尾帧提示词用于生成动态视频或动画。
+
+## 示例：女孩下楼场景的前2个场景Sence的分镜frame 和首尾帧提示词
+
+**Sence 1：楼顶起步**
+**frame_1**: 女孩站在楼顶，雨衣微湿，握紧背包带。昏暗楼道，墙壁有水渍，顶部破损灯泡闪烁。远景，平视，女孩在画面右侧，楼道延伸向左。冷色调，阴影明显，灯光偶尔闪烁。紧张，预示即将行动。
+**video_prompt_1**: 女孩抬起右脚迈向楼梯第一步，缓慢跟拍向下，略微俯拍，突出楼道纵深。节奏慢，带有谨慎感。灯光微闪，阴影随镜头轻微移动。
+**frame_2**: 女孩双手轻扶扶手，低头小心下楼。楼道中段，墙面裂纹明显，水渍顺着墙流下。中景，侧角视角，突出手脚动作。冷色调保持一致，灯光方向一致。小心、紧张。
+**video_prompt_2**: 女孩继续下楼，脚步坚定。跟随移动，略微摇摄，强调动作节奏。节奏慢到中，动作逐渐流畅。保持阴影和亮度连续性。
+**frame_3**: 女孩接近楼下，抬头望向楼道出口。楼道底部有微光透入，地面水渍反光。中景或近景，主体居中，背景有纵深。光线逐渐增强，冷暖对比微弱变化。决心、略微放松。
+**video_prompt_3**: 女孩迈出最后一步，脚尖触碰楼下水面反光。轻微推镜至楼道出口，过渡到街头。溶解过渡，阴影淡入街头光线，保持情绪递进。
+
+**Sence 2：楼下街头**
+**frame_4**: 女孩站在街头，雨水打湿头发和衣物，面向前方。街道湿漉漉，霓虹灯反射在积水中。全景，侧角视角，突出人物与城市环境比例。冷暖对比，霓虹灯色彩突出。警觉，但暂时缓和。
+**video_prompt_4**: 女孩迈步向前，观察四周。跟随中景移动，轻微摇摄，视觉连贯。霓虹灯反光随镜头略微移动，节奏中等，表现观察与警觉。
+**frame_5**: 女孩停下脚步，注视远处街角的身影。街头昏暗区域与霓虹光混合，水面反射光亮。中景偏近，侧角视角，突出表情。光影与霓虹色彩自然过渡。紧张、期待。
+**video_prompt_5**: 女孩微微抬手挡雨，注视目标。缓慢推镜至近景，突出表情与心理。节奏慢到中，紧张感递进。
+**frame_6**: 女孩正面特写，雨水滴落脸颊，目光坚定。街头灯光反射在水面，远处人影模糊。近景，主体居中，背景景深层次明显。冷暖对比，氛围紧张。情绪高潮。
+
+...
 
 '''
 
@@ -330,7 +373,7 @@ def api_edit(prompt, img_list, model="qwen-vl-max-latest", save_tokens=True, api
         raise EnvironmentError("API_KEY is not set!")
 
     print(f'Using "{model}" for prompt rewriting...')
-    assert model in ["qwen-vl-max", "qwen-vl-max-latest", "qwen-vl-max-2025-08-13",
+    assert model in ["qwen-vl-max", "qwen-vl-max-latest", "qwen-vl-max-2025-08-13", "qwen3-vl-plus",
                      "qwen-vl-max-2025-04-08"], f'"{model}" is not available for the "Qwen-Image-Edit" style.'
     sys_promot = "you are a helpful assistant, you should provide useful answers to users."
     messages = [
@@ -465,7 +508,7 @@ class StoryboardPromptHelper:
 
     @classmethod
     def INPUT_TYPES(s):
-        vision_models = ["qwen-vl-max", "qwen-vl-max-latest", "qwen-vl-max-2025-08-13", "qwen-vl-max-2025-04-08"]
+        vision_models = ["qwen-vl-max", "qwen-vl-max-latest", "qwen-vl-max-2025-08-13", "qwen-vl-max-2025-04-08", "qwen3-vl-plus"]
         text_models = ["qwen-plus", "qwen-max", "qwen-plus-latest", "qwen-max-latest"]
 
         return {
@@ -480,8 +523,8 @@ class StoryboardPromptHelper:
             }
         }
 
-    RETURN_TYPES = ("STRING","STRING","INT")
-    RETURN_NAMES = ("storyboard_prompts","first_frame_prompt","storyboard_count")
+    RETURN_TYPES = ("STRING","STRING","STRING","INT")
+    RETURN_NAMES = ("storyboard_prompts","first_frame_prompt","video_prompts","storyboard_count")
     FUNCTION = "generate_storyboard_prompts"
     CATEGORY = "AI Tools/Prompt"
     DESCRIPTION = "StoryboardPromptHelper v1.0.0 - 分镜提示词生成器"
@@ -510,7 +553,8 @@ class StoryboardPromptHelper:
     用户输入: {prompt}
     请输出JSON，格式如下:
     {{
-        "storyboard_prompts": "每行一个分镜提示词，文本中保证没有空白行，整理成以一个分镜一行，并且把语句进行优化，每行以 'Next Scene' 开头",
+        "storyboard_prompts": "这是一个多行文本字符串，按顺序整理所有Frame图片提示词，每行一个分镜Frame提示词，文本中保证没有空白行，整理成以一个分镜一行，语句通顺，主次分明，每行以 'Next Scene:' 开头",
+        "video_prompts"："这是一个多行文本字符串，按顺序整理所有首尾帧提示词，每行一个首尾帧提示词video_prompt，文本中保证没有空白行，整理成以一个分镜一行，语句通顺，主次分明，每行以 'Next Scene:' 开头"
         "first_frame_prompt": "基于首帧图反推出来的图片提示词"
     }}
     注意：直接输出JSON，不要添加额外文本
@@ -525,6 +569,10 @@ class StoryboardPromptHelper:
             try:
                 result_str = api_edit(llm_prompt, img_list, model=model, save_tokens=True, api_key=_api_key)
 
+                print("=== PROCESSED result_str ===")
+                print(result_str)
+                print("=== END result_str ===")
+
                 if isinstance(result_str, str):
                     result_str = result_str.replace('```json','').replace('```','').strip()
                     result = json.loads(result_str)
@@ -532,6 +580,7 @@ class StoryboardPromptHelper:
                     result = result_str
 
                 raw_storyboard = result.get("storyboard_prompts","").strip()
+                raw_video_prompts = result.get("video_prompts","").strip()
 
                 # 简洁且安全的方法
                 if raw_storyboard.startswith("Next Scene"):
@@ -541,20 +590,36 @@ class StoryboardPromptHelper:
                     storyboard_prompts = storyboard_prompts.lstrip('\n').strip()
                 else:
                     storyboard_prompts = raw_storyboard
+                print("raw_video_prompts 处理格式")
+                if raw_video_prompts.startswith("Next Scene"):
+                    # 直接替换，但更精确地处理
+                    video_prompts = raw_video_prompts.replace("Next Scene", "\nNext Scene")
+                    # 移除开头的换行符和所有尾随空白
+                    video_prompts = video_prompts.lstrip('\n').strip()
+                else:
+                    video_prompts = raw_video_prompts
 
                 # 最后再清理一次可能的连续空白行
                 lines = storyboard_prompts.splitlines()
                 cleaned_lines = [line.strip() for line in lines if line.strip()]
                 storyboard_prompts = "\n".join(cleaned_lines)
 
+                print("video_prompts 处理连续空白行")
+                # v_lines = video_prompts.splitlines()
+                # v_cleaned_lines = [v_lines.strip() for v_line in v_lines if v_line.strip()]
+                video_prompts = '\n'.join(line for line in video_prompts.splitlines() if line.strip())
+
                 print("=== PROCESSED STORYBOARD ===")
                 print(storyboard_prompts)
                 print("=== END PROCESSED ===")
+                print("=== PROCESSED VIDEO_PROMPTS ===")
+                print(video_prompts)
+                print("=== END PROCESSED ===")
 
                 # storyboard_count 分镜数量 根据"Next Scene"个数来统计
-                storyboard_count = storyboard_prompts.count("Next Scene")
+                storyboard_count = video_prompts.count("Next Scene")
                 first_frame_prompt = result.get("first_frame_prompt","").strip()
-                return storyboard_prompts, first_frame_prompt, storyboard_count
+                return storyboard_prompts, first_frame_prompt, video_prompts, storyboard_count
 
             except Exception as e:
                 print(f"[StoryboardPromptHelper] API调用失败，第{retries+1}次重试: {e}")
