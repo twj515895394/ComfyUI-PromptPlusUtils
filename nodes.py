@@ -352,7 +352,7 @@ def api_edit(prompt, img_list, model="qwen-vl-max-latest", save_tokens=True, api
         raise EnvironmentError("API_KEY is not set!")
 
     print(f'Using "{model}" for prompt rewriting...')
-    assert model in ["qwen-vl-max", "qwen-vl-max-latest", "qwen-vl-max-2025-08-13",
+    assert model in ["qwen-vl-max", "qwen-vl-max-latest", "qwen-vl-max-2025-08-13", "qwen3-vl-plus", "qwen3-max",
                      "qwen-vl-max-2025-04-08"], f'"{model}" is not available for the "Qwen-Image-Edit" style.'
     sys_promot = "you are a helpful assistant, you should provide useful answers to users."
     messages = [
@@ -411,7 +411,7 @@ def api(prompt, model, api_key=None, kwargs={}):
         raise EnvironmentError("API_KEY is not set!")
 
     print(f'Using "{model}" for prompt rewriting...')
-    assert model in ["qwen-vl-max", "qwen-vl-max-latest", "qwen-vl-max-2025-08-13", "qwen-plus", "qwen-max",
+    assert model in ["qwen-vl-max", "qwen-vl-max-latest", "qwen-vl-max-2025-08-13", "qwen3-plus", "qwen3-max", "qwen3-vl-plus"
                      "qwen-plus-latest", "qwen-max-latest"], f'"{model}" is not available for the "Qwen-Image" style.'
     messages = [
         {'role': 'system', 'content': 'You are a helpful assistant.'},
@@ -435,7 +435,7 @@ def api(prompt, model, api_key=None, kwargs={}):
         raise Exception(f'Failed to post: {response}')
 
 
-def polish_prompt(api_key, prompt, model="qwen-plus", max_retries=10):
+def polish_prompt(api_key, prompt, model="qwen3-plus", max_retries=10):
     retries = 0
     lang = get_caption_language(prompt)
     system_prompt = IMAGE_SYSTEM_PROMPT_ZH if lang == 'zh' else IMAGE_SYSTEM_PROMPT_EN
@@ -488,8 +488,8 @@ class PromptImageHelper:
     @classmethod
     def INPUT_TYPES(s):
         # 定义模型与模式的对应关系
-        text_models = ["qwen-plus", "qwen-max", "qwen-plus-latest", "qwen-max-latest"]
-        vision_models = ["qwen-vl-max", "qwen-vl-max-latest", "qwen-vl-max-2025-08-13", "qwen-vl-max-2025-04-08"]
+        text_models = ["qwen3-plus", "qwen3-max", "qwen-plus-latest", "qwen-max-latest"]
+        vision_models = ["qwen-vl-max", "qwen-vl-max-latest", "qwen-vl-max-2025-08-13", "qwen-vl-max-2025-04-08", "qwen3-vl-plus"]
 
         return {
             "required": {
@@ -589,7 +589,7 @@ class PromptImageHelper:
                 raise ValueError("图生图模式需要提供输入图片！")
 
             # 检查模型是否支持视觉理解
-            vision_models = ["qwen-vl-max", "qwen-vl-max-latest", "qwen-vl-max-2025-08-13", "qwen-vl-max-2025-04-08"]
+            vision_models = ["qwen-vl-max", "qwen-vl-max-latest", "qwen-vl-max-2025-08-13", "qwen-vl-max-2025-04-08", "qwen3-vl-plus", "qwen3-max"]
             if model not in vision_models:
                 raise ValueError(
                     f"图生图模式需要视觉模型，当前模型 {model} 不支持图片理解。请选择: {', '.join(vision_models)}")
